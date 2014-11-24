@@ -29,8 +29,9 @@ typedef enum
 ADDRINT min_addr = 0;
 ADDRINT max_addr = 0;
 
+// I cant seem to use MAX_SIZE here, derping at C++
 unsigned char bitmap[16384];
-ADDRINT last_op = 0;
+UINT32 last_id = 0;
 
 //  inlined functions -----------------------------------------------------
 
@@ -45,12 +46,18 @@ inline ADDRINT valid_addr(ADDRINT addr)
 
 //  Inserted functions ----------------------------------------------------
 
-VOID TrackBranch(ADDRINT *op)
+VOID TrackBranch(ADDRINT addr)
 {
-    std::cout << "\tJUMPADDR: " << op << std::endl;
-    // UINT64 idx = last_op ^ (ADDRINT) op;
-    // std::cout << "index: " << idx << std::endl;
-    // bitmap[idx] = bitmap[idx] + 1;
+    std::cout << "\tJUMPADDR: 0x" << addr << std::endl;
+
+    // TODO: if we ever change the .text check in the segment loading we need to work on this:
+    UINT32 cur_id = (addr - min_addr) ^ last_id;
+
+    std::cout << "cur_id: " << (addr - min_addr) << std::endl;
+    std::cout << "index:  " << cur_id << std::endl;
+    
+    bitmap[cur_id]++;
+    last_id = cur_id;
 }
 
 
@@ -59,39 +66,34 @@ VOID TrackBranch(ADDRINT *op)
 
 VOID TraceBranches(TRACE trace, INS ins)
 {
-    if (INS_IsDirectBranchOrCall(ins)){
-        if (INS_IsBranch(ins))
-        {
-            // As per afl-as.c we only care about conditional branches (so no JMP instructions)
-            if (INS_HasFallThrough(ins))
-            {
-                if (Knob_debug)
-                {
-                    std::cout << "BRANCH" << std::endl;
-                    std::cout << INS_Disassemble(ins) << std::endl << std::endl;
-                }
-
-                ADDRINT target = INS_DirectBranchOrCallTargetAddress(ins);
-
-                INS_InsertCall(ins, IPOINT_TAKEN_BRANCH, (AFUNPTR) TrackBranch, 
-                    IARG_PTR, target,
-                    IARG_END);
-            }
-        }
-        else if (INS_IsCall(ins))
+    if (INS_IsBranch(ins))
+    {
+        // As per afl-as.c we only care about conditional branches (so no JMP instructions)
+        if (INS_HasFallThrough(ins))
         {
             if (Knob_debug)
             {
-                std::cout << "CALL" << std::endl;
+                std::cout << "BRANCH 0x" << INS_Address(ins) << std::endl;
                 std::cout << INS_Disassemble(ins) << std::endl << std::endl;
             }
-            ADDRINT target = INS_DirectBranchOrCallTargetAddress(ins);
 
-            INS_InsertCall(ins, IPOINT_TAKEN_BRANCH, (AFUNPTR) TrackBranch, 
-                    IARG_BRANCH_TARGET_ADDR,
-                    IARG_PTR, target,
-                    IARG_END);
+            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) TrackBranch, 
+                IARG_INST_PTR,
+                IARG_END);
         }
+    }
+    else if (INS_IsCall(ins))
+    {
+        if (Knob_debug)
+        {
+            std::cout << "CALL 0x" << INS_Address(ins) << std::endl;
+            std::cout << INS_Disassemble(ins) << std::endl << std::endl;
+        }
+
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) TrackBranch, 
+                IARG_BRANCH_TARGET_ADDR,
+                IARG_INST_PTR,
+                IARG_END);
     }
 }
 
@@ -124,6 +126,8 @@ VOID entry_point(VOID *ptr)
         // lets sanity check the exec flag 
         // TODO: the check for .text name might be too much, there could be other executable segments we
         //       need to instrument but maybe not things like the .plt or .fini/init
+        // IF this changes, we need to change the code in the instrumentation code, save all the base addresses.
+
         if (SEC_IsExecutable(sec) && SEC_Name(sec) == ".text")
         {
             ADDRINT sec_addr = SEC_Address(sec);
@@ -155,7 +159,7 @@ VOID entry_point(VOID *ptr)
     if (Knob_debug)
     {
         std::cout << "min_addr:\t0x" << min_addr << std::endl;
-        std::cout << "max_addr:\t0x" << max_addr << std::endl;
+        std::cout << "max_addr:\t0x" << max_addr << std::endl << std::endl;
     }
 }
 
