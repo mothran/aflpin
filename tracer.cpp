@@ -48,9 +48,9 @@ inline ADDRINT valid_addr(ADDRINT addr)
 VOID TrackBranch(ADDRINT *op)
 {
     std::cout << "\tJUMPADDR: " << op << std::endl;
-    UINT64 idx = last_op ^ (ADDRINT) op;
-    std::cout << "index: " << idx << std::endl;
-    bitmap[idx] = bitmap[idx] + 1;
+    // UINT64 idx = last_op ^ (ADDRINT) op;
+    // std::cout << "index: " << idx << std::endl;
+    // bitmap[idx] = bitmap[idx] + 1;
 }
 
 
@@ -159,15 +159,6 @@ VOID entry_point(VOID *ptr)
     }
 }
 
-static VOID fini_cb(INT32 code, VOID *v)
-{
-    std::cout << "BITMAP:" << std::endl;
-    uint i;
-    for(i=0; i < MAP_SIZE; i++){
-        std::cout << bitmap[i] << std::endl;
-    }
-}
-
 
 INT32 Usage()
 {
@@ -187,7 +178,6 @@ int main(int argc, char *argv[])
     PIN_SetSyntaxIntel();
     TRACE_AddInstrumentFunction(Trace, 0);
     PIN_AddApplicationStartFunction(entry_point, 0);
-    PIN_AddFiniFunction(fini_cb, 0);
     PIN_StartProgram();
 }
 
