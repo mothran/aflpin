@@ -2,17 +2,15 @@
 #include <iostream>
 #include "colors.hpp"
 
+// 65536
+#define MAP_SIZE (1 << 16)
+
 //  CLI options -----------------------------------------------------------
 
 KNOB<BOOL> Knob_debug(KNOB_MODE_WRITEONCE,  "pintool",
     "debug", "0", "Enable debug mode");
 
 //  Global Vars -----------------------------------------------------------
-
-// From AFL:
-UINT64 MAP_SIZE = 16384;
-
-// Other:
 
 typedef enum
 {
@@ -29,33 +27,39 @@ typedef enum
 ADDRINT min_addr = 0;
 ADDRINT max_addr = 0;
 
+
 // I cant seem to use MAX_SIZE here, derping at C++
-unsigned char bitmap[16384];
+unsigned char bitmap[MAP_SIZE];
 UINT32 last_id = 0;
 
 //  inlined functions -----------------------------------------------------
 
 inline ADDRINT valid_addr(ADDRINT addr)
 {
-    if ( addr < min_addr || addr > max_addr )
-        return false;
+    if ( addr > min_addr && addr < max_addr )
+        return true;
 
-    return true;
+    return false;
 }
 
 
 //  Inserted functions ----------------------------------------------------
 
-VOID TrackBranch(ADDRINT addr)
+VOID TrackBranch(ADDRINT cur_addr)
 {
-    std::cout << "\tJUMPADDR: 0x" << addr << std::endl;
+    std::cout << "\nCURADDR:  0x" << cur_addr << std::endl;
 
     // TODO: if we ever change the .text check in the segment loading we need to work on this:
-    UINT32 cur_id = (addr - min_addr) ^ last_id;
+    UINT32 cur_id = (cur_addr - min_addr) ^ last_id;
 
-    std::cout << "cur_id: " << (addr - min_addr) << std::endl;
-    std::cout << "index:  " << cur_id << std::endl;
-    
+    std::cout << "rel_addr: " << (cur_addr - min_addr) << std::endl;
+    std::cout << "cur_id:  " << cur_id << std::endl;
+
+    if (cur_id > MAP_SIZE) {
+        std::cout << red << "ERROR: cur_id too large for map, WTF!" << cend << std::endl;
+        return;
+    }
+
     bitmap[cur_id]++;
     last_id = cur_id;
 }
@@ -66,34 +70,20 @@ VOID TrackBranch(ADDRINT addr)
 
 VOID TraceBranches(TRACE trace, INS ins)
 {
-    if (INS_IsBranch(ins))
+    if (INS_IsBranch(ins) || INS_IsCall(ins))
     {
         // As per afl-as.c we only care about conditional branches (so no JMP instructions)
-        if (INS_HasFallThrough(ins))
+        if (INS_HasFallThrough(ins) || INS_IsCall(ins))
         {
-            if (Knob_debug)
-            {
-                std::cout << "BRANCH 0x" << INS_Address(ins) << std::endl;
-                std::cout << INS_Disassemble(ins) << std::endl << std::endl;
+            if (Knob_debug) {
+                
+                std::cout << "BRACH: 0x" << INS_Address(ins) << "\t" << INS_Disassemble(ins) << std::endl;
             }
 
-            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) TrackBranch, 
+            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)TrackBranch,
                 IARG_INST_PTR,
                 IARG_END);
         }
-    }
-    else if (INS_IsCall(ins))
-    {
-        if (Knob_debug)
-        {
-            std::cout << "CALL 0x" << INS_Address(ins) << std::endl;
-            std::cout << INS_Disassemble(ins) << std::endl << std::endl;
-        }
-
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) TrackBranch, 
-                IARG_BRANCH_TARGET_ADDR,
-                IARG_INST_PTR,
-                IARG_END);
     }
 }
 
