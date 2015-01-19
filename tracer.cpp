@@ -21,7 +21,7 @@ ADDRINT max_addr = 0;
 unsigned char bitmap[MAP_SIZE];
 uint8_t *bitmap_shm = 0;
 
-UINT32 last_id = 0;
+ADDRINT last_id = 0;
 
 //  inlined functions -----------------------------------------------------
 
@@ -47,7 +47,7 @@ VOID TrackBranch(ADDRINT cur_addr)
     }
 
     if (cur_id > MAP_SIZE) {
-        std::cout << red << "ERROR: cur_id too large for map, WTF!" << cend << std::endl;
+        std::cout << red << "ERROR: cur_id too large for map" << cend << std::endl;
         return;
     }
 
@@ -62,6 +62,13 @@ VOID TrackBranch(ADDRINT cur_addr)
     last_id = cur_id;
 }
 
+// Unused currently but could become a fast call in the future once I have tested it more.
+VOID TrackBranchFast(ADDRINT cur_addr)
+{
+    ADDRINT cur_id = ((min_addr - cur_addr) ^ last_id) % MAP_SIZE;
+    bitmap_shm[cur_id]++;
+    last_id = cur_id;
+}
 
 //  Analysis functions ----------------------------------------------------
 
@@ -80,7 +87,7 @@ VOID Trace(TRACE trace, VOID *v)
                     {
                         if (Knob_debug) {
                             
-                            LOG("BRACH: 0x" + INS_Disassemble(ins) );
+                            std::cout << "BRACH: 0x" << INS_Address(ins) << ":\t" << INS_Disassemble(ins) << std::endl;
                         }
 
                         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)TrackBranch,
