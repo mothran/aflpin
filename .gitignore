@@ -1,1 +1,2 @@
-obj-intel64/
+obj-intel64/*
+obj-ia32/*

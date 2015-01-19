@@ -90,6 +90,7 @@ VOID Trace(TRACE trace, VOID *v)
                             std::cout << "BRACH: 0x" << INS_Address(ins) << ":\t" << INS_Disassemble(ins) << std::endl;
                         }
 
+                        // Instrument the code.
                         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)TrackBranch,
                             IARG_INST_PTR,
                             IARG_END);
@@ -193,6 +194,7 @@ int main(int argc, char *argv[])
     TRACE_AddInstrumentFunction(Trace, 0);
     PIN_AddApplicationStartFunction(entry_point, 0);
     PIN_StartProgram();
+
     // AFL_NO_FORKSRV=1
     // We could use this main function to talk to the fork server's fd and then enable the fork server with this tool...
 }
