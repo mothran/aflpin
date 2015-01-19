@@ -1,5 +1,8 @@
 #include <pin.H>
+#include <cstdlib>
 #include <iostream>
+#include <sys/shm.h>
+
 #include "colors.hpp"
 
 // 65536
@@ -12,24 +15,12 @@ KNOB<BOOL> Knob_debug(KNOB_MODE_WRITEONCE,  "pintool",
 
 //  Global Vars -----------------------------------------------------------
 
-typedef enum
-{
-    ETYPE_INVALID,
-    ETYPE_CALL,
-    ETYPE_ICALL,
-    ETYPE_TCALL,
-    ETYPE_BRANCH,
-    ETYPE_IBRANCH,
-    ETYPE_RETURN,
-    ETYPE_LAST
-} ETYPE;
-
 ADDRINT min_addr = 0;
 ADDRINT max_addr = 0;
 
-
-// I cant seem to use MAX_SIZE here, derping at C++
 unsigned char bitmap[MAP_SIZE];
+uint8_t *bitmap_shm = 0;
+
 UINT32 last_id = 0;
 
 //  inlined functions -----------------------------------------------------
@@ -42,50 +33,37 @@ inline ADDRINT valid_addr(ADDRINT addr)
     return false;
 }
 
-
 //  Inserted functions ----------------------------------------------------
 
 VOID TrackBranch(ADDRINT cur_addr)
 {
-    std::cout << "\nCURADDR:  0x" << cur_addr << std::endl;
-
-    // TODO: if we ever change the .text check in the segment loading we need to work on this:
-    UINT32 cur_id = (cur_addr - min_addr) ^ last_id;
-
-    std::cout << "rel_addr: " << (cur_addr - min_addr) << std::endl;
-    std::cout << "cur_id:  " << cur_id << std::endl;
+    // Could easily make this a UINT16 I think but if MAP_SIZE changes then a type would have to change. 
+    ADDRINT cur_id = ((min_addr - cur_addr) ^ last_id) % MAP_SIZE;
+    
+    if (Knob_debug) {
+        std::cout << "\nCURADDR:  0x" << cur_addr << std::endl;
+        std::cout << "rel_addr: " << (cur_addr - min_addr) << std::endl;
+        std::cout << "cur_id:  " << cur_id << std::endl;
+    }
 
     if (cur_id > MAP_SIZE) {
         std::cout << red << "ERROR: cur_id too large for map, WTF!" << cend << std::endl;
         return;
     }
 
-    bitmap[cur_id]++;
+    // allows for debugging without running inside of afl.
+    if (bitmap_shm == 0){
+        bitmap[cur_id]++;
+    }
+    else {
+        bitmap_shm[cur_id]++;
+    }
+
     last_id = cur_id;
 }
 
 
 //  Analysis functions ----------------------------------------------------
-
-
-VOID TraceBranches(TRACE trace, INS ins)
-{
-    if (INS_IsBranch(ins) || INS_IsCall(ins))
-    {
-        // As per afl-as.c we only care about conditional branches (so no JMP instructions)
-        if (INS_HasFallThrough(ins) || INS_IsCall(ins))
-        {
-            if (Knob_debug) {
-                
-                std::cout << "BRACH: 0x" << INS_Address(ins) << "\t" << INS_Disassemble(ins) << std::endl;
-            }
-
-            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)TrackBranch,
-                IARG_INST_PTR,
-                IARG_END);
-        }
-    }
-}
 
 VOID Trace(TRACE trace, VOID *v)
 {
@@ -96,7 +74,20 @@ VOID Trace(TRACE trace, VOID *v)
             // make sure it is in a segment we want to instrument!
             if (valid_addr(INS_Address(ins)))
             {
-                TraceBranches(trace, ins);
+                if (INS_IsBranch(ins)) {
+                    // As per afl-as.c we only care about conditional branches (so no JMP instructions)
+                    if (INS_HasFallThrough(ins) || INS_IsCall(ins))
+                    {
+                        if (Knob_debug) {
+                            
+                            LOG("BRACH: 0x" + INS_Disassemble(ins) );
+                        }
+
+                        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)TrackBranch,
+                            IARG_INST_PTR,
+                            IARG_END);
+                    }
+                }
             }
         }
     }
@@ -153,11 +144,33 @@ VOID entry_point(VOID *ptr)
     }
 }
 
+// Main functions ------------------------------------------------
 
 INT32 Usage()
 {
-    std::cerr << "USAGGE TODO" << std::endl;
+    std::cerr << "AFLPIN -- A pin tool to enable blackbox binaries to be fuzzed with AFL on Linux" << std::endl;
+    std::cerr << "   -debug --  prints extra debug information." << std::endl;
     return -1;
+}
+
+bool setup_shm() {
+    if (char *shm_id_str = getenv("__AFL_SHM_ID")) {
+        int shm_id;
+        shm_id = stoi(shm_id_str);
+        std::cout << "shm_id: " << shm_id << std::endl;        
+        
+        bitmap_shm = reinterpret_cast<uint8_t*>(shmat(shm_id, 0, 0));
+        
+        if (bitmap_shm == reinterpret_cast<void *>(-1)) {
+            std::cout << red << "failed to get shm addr from shmmat()" << cend << std::endl;
+            return false;
+        }
+    }
+    else {
+        std::cout << red << "failed to get shm_id envvar" << cend << std::endl;
+        return false;
+    }
+    return true;
 }
 
 
@@ -166,12 +179,14 @@ int main(int argc, char *argv[])
     if(PIN_Init(argc, argv)){
         return Usage();
     }
-    
-    std::cout << "MAPSIZE: " << MAP_SIZE << std::endl;
+
+    setup_shm();
 
     PIN_SetSyntaxIntel();
     TRACE_AddInstrumentFunction(Trace, 0);
     PIN_AddApplicationStartFunction(entry_point, 0);
     PIN_StartProgram();
+    // AFL_NO_FORKSRV=1
+    // We could use this main function to talk to the fork server's fd and then enable the fork server with this tool...
 }
 
