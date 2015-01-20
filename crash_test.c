@@ -35,6 +35,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
+	// bad size here, could lead to a secondary issue. 
 	read(fd, buffer, st.st_size);
 
 	vulnerable(buffer);
