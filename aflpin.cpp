@@ -28,7 +28,7 @@ ADDRINT last_id = 0;
 
 inline ADDRINT valid_addr(ADDRINT addr)
 {
-    if ( addr > min_addr && addr < max_addr )
+    if ( addr >= min_addr && addr <= max_addr )
         return true;
 
     return false;

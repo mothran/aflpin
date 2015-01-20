@@ -14,6 +14,9 @@ Then build AFLPIN tool's .so file for use with pin:
 $ PIN_ROOT=/path/to/pin/root/ make obj-intel64/aflpin.so
 $ PIN_ROOT=/path/to/pin/root/ make TARGET=ia32 obj-ia32/aflpin.so
 
+Then a command (to be run as root), to enable pin to be run from userland:
+echo 0 > /proc/sys/kernel/yama/ptrace_scope
+
 ## Usage
 
 In order to use the AFLPIN with afl-fuzz I had to comment out a single sanity check because of how pin is invoked from AFL:
@@ -43,3 +46,5 @@ crash_test.c is a simple process that reads in a file (as per and argument) that
 
 sleep_test.c is used to verify the branch checking in AFLPIN, you can invoke the pin tool without afl without modifying 
 the arguments.  also there is a -debug flag you can pass to the pin binary that will print extra information inside AFLPIN.
+
+If AFL reports that the test case resulted in a crash, check the pin.log file in your current working directory for pin specific errors.
