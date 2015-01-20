@@ -42,8 +42,8 @@ VOID TrackBranch(ADDRINT cur_addr)
     ADDRINT cur_id = ((min_addr - cur_addr) ^ last_id) % MAP_SIZE;
     
     if (Knob_debug) {
-        std::cout << "\nCURADDR:  0x" << cur_addr << std::endl;
-        std::cout << "rel_addr: " << (cur_addr - min_addr) << std::endl;
+        std::cout << "\nCURADDR:  0x" << std::hex << cur_addr << std::endl;
+        std::cout << "rel_addr: 0x" << std::hex << (cur_addr - min_addr) << std::endl;
         std::cout << "cur_id:  " << cur_id << std::endl;
     }
 
@@ -88,7 +88,7 @@ VOID Trace(TRACE trace, VOID *v)
                     {
                         if (Knob_debug) {
                             
-                            std::cout << "BRACH: 0x" << INS_Address(ins) << ":\t" << INS_Disassemble(ins) << std::endl;
+                            std::cout << "BRACH: 0x" << std::hex << INS_Address(ins) << ":\t" << INS_Disassemble(ins) << std::endl;
                         }
 
                         // Instrument the code.
@@ -126,7 +126,7 @@ VOID entry_point(VOID *ptr)
             if (Knob_debug)
             {
                 std::cout << "Name: " << SEC_Name(sec) << std::endl;
-                std::cout << "Addr: 0x" << sec_addr << std::endl;
+                std::cout << "Addr: 0x" << std::hex << sec_addr << std::endl;
                 std::cout << "Size: " << sec_size << std::endl << std::endl;
             }
 
@@ -148,8 +148,8 @@ VOID entry_point(VOID *ptr)
     }
     if (Knob_debug)
     {
-        std::cout << "min_addr:\t0x" << min_addr << std::endl;
-        std::cout << "max_addr:\t0x" << max_addr << std::endl << std::endl;
+        std::cout << "min_addr:\t0x" << std::hex << min_addr << std::endl;
+        std::cout << "max_addr:\t0x" << std::hex << max_addr << std::endl << std::endl;
     }
 }
 
