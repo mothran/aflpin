@@ -1,13 +1,16 @@
 #include <pin.H>
 #include <string>
 #include <cstdlib>
+#include <unistd.h>
 #include <iostream>
 #include <sys/shm.h>
+#include <sys/wait.h>
 
 #include "colors.hpp"
 
 // 65536
-#define MAP_SIZE (1 << 16)
+#define MAP_SIZE    (1 << 16)
+#define FORKSRV_FD  198
 
 //  CLI options -----------------------------------------------------------
 
@@ -178,11 +181,61 @@ int main(int argc, char *argv[])
 
     setup_shm();
 
-
     PIN_SetSyntaxIntel();
     TRACE_AddInstrumentFunction(Trace, 0);
     PIN_AddApplicationStartFunction(entry_point, 0);
-    PIN_StartProgram();
+
+
+    // int *afl_temp;
+    unsigned char afl_temp[] = {0x0, 0x0, 0x0, 0x0};
+    pid_t afl_pid;
+
+    if ((write((FORKSRV_FD + 1), afl_temp, 4)) < 0) {
+        LOG("ERROR: writing to afl fork server 1");
+        return -1;
+    }
+
+    bool running = true;
+
+    // start while() loop
+
+    while(running) {
+        if ((read(FORKSRV_FD, afl_temp, 4)) < 0) {
+            LOG("ERROR: reading from afl fork server");
+            return -1;
+        }
+
+        afl_pid = fork();
+
+        if (afl_pid > 0) {
+            // parent process
+            if ((write((FORKSRV_FD + 1), afl_pid, 4)) < 0) {
+                LOG("ERROR: writing to afl fork server 2");
+                return -1;
+            }
+            if ((waitpid(afl_pid, (int *)afl_temp, WUNTRACED)) < 0) {
+                LOG("ERROR: in waitpid");
+                return -1;
+            }
+            if ((write((FORKSRV_FD + 1), afl_temp, 4)) < 0) {
+                // I need to write come clean up code here.
+                LOG("ERROR: writing to afl fork server 3");
+                return -1;
+            }
+            continue;
+        }
+        else if (afl_pid == 0) {
+            // child process
+            close(FORKSRV_FD);
+            close(FORKSRV_FD + 1);
+            PIN_StartProgram();
+        }
+        else {
+            LOG("ERROR: fork failed");
+            return -1;
+        }
+    }
+
 
     // AFL_NO_FORKSRV=1
     // We could use this main function to talk to the fork server's fd and then enable the fork server with this tool...
