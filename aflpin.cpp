@@ -36,38 +36,25 @@ inline ADDRINT valid_addr(ADDRINT addr)
 
 //  Inserted functions ----------------------------------------------------
 
-VOID TrackBranch(ADDRINT cur_addr)
-{
-    // Could easily make this a UINT16 I think but if MAP_SIZE changes then a type would have to change. 
-    ADDRINT cur_id = ((min_addr - cur_addr) ^ last_id) % MAP_SIZE;
-    
-    if (Knob_debug) {
-        std::cout << "\nCURADDR:  0x" << std::hex << cur_addr << std::endl;
-        std::cout << "rel_addr: 0x" << std::hex << (cur_addr - min_addr) << std::endl;
-        std::cout << "cur_id:  " << cur_id << std::endl;
-    }
-
-    if (cur_id > MAP_SIZE) {
-        std::cout << red << "ERROR: cur_id too large for map" << cend << std::endl;
-        return;
-    }
-
-    // allows for debugging without running inside of afl.
-    if (bitmap_shm == 0){
-        bitmap[cur_id]++;
-    }
-    else {
-        bitmap_shm[cur_id]++;
-    }
-
-    last_id = cur_id;
-}
 
 // Unused currently but could become a fast call in the future once I have tested it more.
-VOID TrackBranchFast(ADDRINT cur_addr)
+VOID TrackBranch(ADDRINT cur_addr)
 {
-    ADDRINT cur_id = ((min_addr - cur_addr) ^ last_id) % MAP_SIZE;
-    bitmap_shm[cur_id]++;
+    ADDRINT cur_id = cur_addr - min_addr;
+
+    // if (Knob_debug) {
+    //     std::cout << "\nCURADDR:  0x" << cur_addr << std::endl;
+    //     std::cout << "rel_addr: 0x" << (cur_addr - min_addr) << std::endl;
+    //     std::cout << "cur_id:  " << cur_id << std::endl;
+    //     std::cout << "index:  " << ((cur_id ^ last_id) % MAP_SIZE) << std::endl;
+    // }
+
+    if (bitmap_shm != 0){
+        bitmap_shm[((cur_id ^ last_id) % MAP_SIZE)]++;
+    }
+    else {
+        bitmap[((cur_id ^ last_id) % MAP_SIZE)]++;
+    }
     last_id = cur_id;
 }
 
@@ -190,6 +177,7 @@ int main(int argc, char *argv[])
     }
 
     setup_shm();
+
 
     PIN_SetSyntaxIntel();
     TRACE_AddInstrumentFunction(Trace, 0);
