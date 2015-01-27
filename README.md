@@ -11,8 +11,8 @@ First download the current version on the PIN library from https://software.inte
 
 Then build AFLPIN tool's .so file for use with pin:
 
-$ PIN_ROOT=/path/to/pin/root/ make obj-intel64/aflpin.so
-$ PIN_ROOT=/path/to/pin/root/ make TARGET=ia32 obj-ia32/aflpin.so
+	$ PIN_ROOT=/path/to/pin/root/ make obj-intel64/aflpin.so
+	$ PIN_ROOT=/path/to/pin/root/ make TARGET=ia32 obj-ia32/aflpin.so
 
 Then a command (to be run as root), to enable pin to be run from userland:
 echo 0 > /proc/sys/kernel/yama/ptrace_scope
@@ -31,7 +31,7 @@ Comment this line out and rebuild afl-fuzz.
 
 Then to invoke the pin tool with a target and afl-fuzz:
 
-$ AFL_NO_FORKSRV=1 afl-fuzz -m 500 -i .. -o .. -f .. -- /path/to/pin_app -t /path/to/obj-intel64|obj-ia32/aflpin.so -- TARGETAPP @@
+	$ AFL_NO_FORKSRV=1 afl-fuzz -m 500 -i .. -o .. -f .. -- /path/to/pin_app -t /path/to/obj-intel64|obj-ia32/aflpin.so -- TARGETAPP @@
 
 ### Notes
 
