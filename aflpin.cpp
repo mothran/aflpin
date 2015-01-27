@@ -185,7 +185,6 @@ int main(int argc, char *argv[])
     TRACE_AddInstrumentFunction(Trace, 0);
     PIN_AddApplicationStartFunction(entry_point, 0);
 
-
     // int *afl_temp;
     unsigned char afl_temp[] = {0x0, 0x0, 0x0, 0x0};
     pid_t afl_pid;
@@ -195,11 +194,9 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    bool running = true;
-
     // start while() loop
 
-    while(running) {
+    while(true) {
         if ((read(FORKSRV_FD, afl_temp, 4)) < 0) {
             LOG("ERROR: reading from afl fork server");
             return -1;
@@ -208,8 +205,9 @@ int main(int argc, char *argv[])
         afl_pid = fork();
 
         if (afl_pid > 0) {
+            LOG("IN Parent\n");
             // parent process
-            if ((write((FORKSRV_FD + 1), afl_pid, 4)) < 0) {
+            if ((write((FORKSRV_FD + 1), &afl_pid, 4)) < 0) {
                 LOG("ERROR: writing to afl fork server 2");
                 return -1;
             }
@@ -226,8 +224,10 @@ int main(int argc, char *argv[])
         }
         else if (afl_pid == 0) {
             // child process
+            LOG("IN Child\n");
             close(FORKSRV_FD);
             close(FORKSRV_FD + 1);
+
             PIN_StartProgram();
         }
         else {
@@ -235,6 +235,7 @@ int main(int argc, char *argv[])
             return -1;
         }
     }
+    LOG("Exited loop\n");
 
 
     // AFL_NO_FORKSRV=1
